@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 
-class ModelConnectorInterface(ABC):
+class ModelRegistryInterface(ABC):
     @abstractmethod
     def register(self, model, model_name: str, experiment: str, version: Optional[int]):
         pass

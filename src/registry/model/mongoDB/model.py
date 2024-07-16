@@ -3,11 +3,11 @@ from typing import Optional
 
 import gridfs
 
-from registry.model.base import ModelConnectorInterface
+from registry.model.base import ModelRegistryInterface
 from registry.model.mongoDB.connector import MongoDBConnector
 
 
-class MongoDBModelRegistry(ModelConnectorInterface):
+class MongoDBModelRegistry(ModelRegistryInterface):
     def __init__(self, mongo_connector: MongoDBConnector):
         self.db = mongo_connector.db
         self.fs = gridfs.GridFS(self.db)

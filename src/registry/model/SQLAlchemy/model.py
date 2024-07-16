@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, LargeBinary
 from sqlalchemy.ext.declarative import declarative_base
 
 from registry.model.SQLAlchemy.connector import PostgresConnector
-from registry.model.base import ModelConnectorInterface
+from registry.model.base import ModelRegistryInterface
 
 Base = declarative_base()
 
@@ -20,7 +20,7 @@ class ModelMetadata(Base):
     model_data = Column(LargeBinary, nullable=False)
 
 
-class PostgresModelRegistry(ModelConnectorInterface):
+class PostgresModelRegistry(ModelRegistryInterface):
     def __init__(self, postgres_connector: PostgresConnector):
         self.session = postgres_connector.get_session()
 

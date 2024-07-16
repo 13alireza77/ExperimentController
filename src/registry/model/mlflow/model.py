@@ -2,11 +2,11 @@ from typing import Optional
 
 from mlflow.entities.model_registry import ModelVersion
 
-from registry.model.base import ModelConnectorInterface
+from registry.model.base import ModelRegistryInterface
 from registry.model.mlflow.connector import Connector
 
 
-class MlFlowModelRegistry(ModelConnectorInterface):
+class MlFlowModelRegistry(ModelRegistryInterface):
     def __init__(self, mlflow_connector: Connector):
         if not isinstance(mlflow_connector, Connector):
             raise ValueError("mlflow_connector should be an instance of MlFlowConnector")
