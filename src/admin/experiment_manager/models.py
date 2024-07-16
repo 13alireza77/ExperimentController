@@ -4,9 +4,9 @@ from django.db import models
 from django.db.models import Sum
 from django.db.utils import IntegrityError
 
-from experiment.base import Experiment as RedisExperiment
-# from experiment.base import ExperimentFlag as RedisExperimentFlag
-# from experiment.base import ExperimentFlagType as RedisExperimentFlagType
+from experiment.base import Experiment as CacheExperiment
+from experiment.base import ExperimentFlagType as CacheExperimentFlagType
+from experiment.base import Flag as CacheFlag
 from experiment.experiment_manager import ExperimentManager
 
 
@@ -29,21 +29,21 @@ class Flag(models.Model):
         if self.type == ExperimentFlagType.BOOLEAN and self.base_value not in ["True", "False"]:
             raise ValidationError("For BOOLEAN type flags, base_value must be either 'True' or 'False'.")
 
-    # def save(self, *args, **kwargs):
-    #     self.full_clean()
-    #     super().save(*args, **kwargs)  # Save to the Django DB
-    #     try:
-    #         # Create Redis object representation
-    #         redis_object = RedisExperimentFlag(
-    #             name=self.name.__str__(),
-    #             type=RedisExperimentFlagType(ExperimentFlagType(self.type).name),
-    #             base_value=self.base_value
-    #         )
-    #         # Save to Redis via ExperimentManager
-    #         ExperimentManager.save_flag(redis_object)
-    #     except Exception as ex:  # General exception catching to simplify rollback demonstration
-    #         self.delete()  # Rollback if Redis save fails
-    #         raise ex
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)  # Save to the Django DB
+        try:
+            # Create Redis object representation
+            redis_object = CacheFlag(
+                name=self.name.__str__(),
+                type=CacheExperimentFlagType(ExperimentFlagType(self.type).name),
+                base_value=self.base_value
+            )
+            # Save to Redis via ExperimentManager
+            ExperimentManager.save_flag(redis_object)
+        except Exception as ex:  # General exception catching to simplify rollback demonstration
+            self.delete()  # Rollback if Redis save fails
+            raise ex
 
     def __str__(self):
         return self.name
@@ -87,7 +87,7 @@ class Experiment(models.Model):
         super().save(*args, **kwargs)  # Save to the Django DB
         try:
             # Create Redis object representation
-            redis_object = RedisExperiment(
+            redis_object = CacheExperiment(
                 name=self.name,
                 flag_name=self.flag.name,
                 flag_value=self.flag_value,

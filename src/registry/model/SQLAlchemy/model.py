@@ -4,8 +4,8 @@ from typing import Optional
 from sqlalchemy import Column, Integer, String, LargeBinary
 from sqlalchemy.ext.declarative import declarative_base
 
-from registry.SQLAlchemy.connector import PostgresConnector
-from src.registry.base import ModelConnectorInterface
+from registry.model.SQLAlchemy.connector import PostgresConnector
+from registry.model.base import ModelConnectorInterface
 
 Base = declarative_base()
 
@@ -34,7 +34,7 @@ class PostgresModelRegistry(ModelConnectorInterface):
         """
         model_data = pickle.dumps(model)
         new_model = ModelMetadata(
-            name=model_id,
+            name=model_name,
             experiment=experiment,
             version=version,
             model_data=model_data

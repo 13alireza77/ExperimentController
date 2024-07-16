@@ -3,8 +3,8 @@ from typing import Optional
 
 import gridfs
 
-from registry.mongoDB.connector import MongoDBConnector
-from src.registry.base import ModelConnectorInterface
+from registry.model.base import ModelConnectorInterface
+from registry.model.mongoDB.connector import MongoDBConnector
 
 
 class MongoDBModelRegistry(ModelConnectorInterface):

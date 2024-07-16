@@ -4,9 +4,9 @@ from typing import Optional
 import cachetools.func
 
 from experiment import redis_connector
-from experiment.base import Experiment
+from experiment.base import Experiment, Flag, ExperimentFlagType
 from experiment.config import REFRESH_EXPERIMENT_INTERVAL
-from experiment.exception import ExperimentNotFound
+from experiment.exception import ExperimentNotFound, FlagNotFound
 from experiment.redis_connector import RedisConnector
 
 
@@ -18,17 +18,17 @@ class ExperimentManager:
     def save_experiment(cls, experiment: Experiment):
         cls._redis_connector.save_experiment(experiment)
 
-    # @classmethod
-    # def save_flag(cls, flag: ExperimentFlag):
-    #     cls._redis_connector.save_flag(flag)
-    #
-    # @classmethod
-    # @cachetools.func.ttl_cache(maxsize=10, ttl=10 * 60)
-    # def load_flag(cls, flag_name: str) -> Optional[ExperimentFlag]:
-    #     data = cls._redis_connector.load_flag(flag_name)
-    #     if data:
-    #         return cls._deserialize_flag(data)
-    #     return None
+    @classmethod
+    def save_flag(cls, flag: Flag):
+        cls._redis_connector.save_flag(flag)
+
+    @classmethod
+    @cachetools.func.ttl_cache(maxsize=10, ttl=REFRESH_EXPERIMENT_INTERVAL)
+    def load_flag(cls, flag_name: str) -> Optional[Flag]:
+        data = cls._redis_connector.load_flag(flag_name)
+        if data:
+            return cls._deserialize_flag(data)
+        return None
 
     @classmethod
     def evaluate(cls, flag_name: str, layer: str, layer_value: Optional[str, int]):
@@ -40,7 +40,10 @@ class ExperimentManager:
             if experiment_range >= cumulative_share:
                 return experiment.flag_value
 
-        return experiment_range
+        flag = cls.load_flag(flag_name)
+        if not flag:
+            raise FlagNotFound(f"Flag with name:{flag_name} not found")
+        return flag.base_value
 
     @classmethod
     @cachetools.func.ttl_cache(maxsize=10, ttl=REFRESH_EXPERIMENT_INTERVAL)
@@ -75,9 +78,9 @@ class ExperimentManager:
 
         return mapped_value
 
-    # @classmethod
-    # def _deserialize_flag(cls, item: str) -> ExperimentFlag:
-    #     data = json.loads(item)
-    #     return ExperimentFlag(name=data['name'],
-    #                           type=ExperimentFlagType[data['type']],
-    #                           base_value=data['base_value'])
+    @classmethod
+    def _deserialize_flag(cls, item: str) -> Flag:
+        data = json.loads(item)
+        return Flag(name=data['name'],
+                    type=ExperimentFlagType[data['type']],
+                    base_value=data['base_value'])

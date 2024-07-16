@@ -3,7 +3,7 @@ from typing import Optional
 
 import redis
 
-from experiment.base import Experiment
+from experiment.base import Experiment, Flag
 
 
 class RedisConnector:
@@ -31,22 +31,22 @@ class RedisConnector:
         if ttl:
             cls._redis_client.expire(key, ttl)
 
-    # @classmethod
-    # def save_flag(cls, flag: ExperimentFlag, ttl: Optional[int] = None):
-    #     key = cls._get_flag_key(flag.name)
-    #     cls._redis_client.set(key, json.dumps(flag))
-    #     if ttl is not None:
-    #         cls._redis_client.expire(key, ttl)
+    @classmethod
+    def save_flag(cls, flag: Flag, ttl: Optional[int] = None):
+        key = cls._get_flag_key(flag.name)
+        cls._redis_client.set(key, json.dumps(flag))
+        if ttl is not None:
+            cls._redis_client.expire(key, ttl)
 
     @classmethod
     def load_experiments_by_flag_name(cls, flag_name: str):
         key = cls._get_flag_experiments_key(flag_name)
         return cls._redis_client.hvals(key)
 
-    # @classmethod
-    # def load_flag(cls, flag_name: str):
-    #     key = cls._get_flag_experiments_key(flag_name)
-    #     return cls._redis_client.get(key)
+    @classmethod
+    def load_flag(cls, flag_name: str):
+        key = cls._get_flag_experiments_key(flag_name)
+        return cls._redis_client.get(key)
 
     @classmethod
     def delete_experiments_by_flag_name(cls, flag_name: str):

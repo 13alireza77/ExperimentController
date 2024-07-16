@@ -1,18 +1,19 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 
-# class ExperimentFlagType(str, Enum):
-#     INTEGER = "INTEGER"
-#     BOOLEAN = "BOOLEAN"
-#     STRING = "STRING"
+class ExperimentFlagType(str, Enum):
+    INTEGER = "INTEGER"
+    BOOLEAN = "BOOLEAN"
+    STRING = "STRING"
 
 
-# @dataclass
-# class ExperimentFlag:
-#     name: str
-#     type: ExperimentFlagType
-#     base_value: Any
+@dataclass
+class Flag:
+    name: str
+    type: ExperimentFlagType
+    base_value: Any
 
 
 @dataclass

@@ -2,8 +2,8 @@ from typing import Optional
 
 from mlflow.entities.model_registry import ModelVersion
 
-from src.registry.base import ModelConnectorInterface
-from src.registry.mlflow.connector import Connector
+from registry.model.base import ModelConnectorInterface
+from registry.model.mlflow.connector import Connector
 
 
 class MlFlowModelRegistry(ModelConnectorInterface):
