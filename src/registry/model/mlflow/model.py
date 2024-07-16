@@ -29,7 +29,7 @@ class MlFlowModelRegistry(ModelConnectorInterface):
         )
         return self.client.create_model_version(name=model_name, source=model_uri, run_id=run_id)
 
-    def load(self, model, model_name: str, experiment: str, version: Optional[int]):
+    def load(self, model_name: str, experiment: str, version: Optional[int]):
         """
         Load the model using model_name and experiment_manager. Version is optional, if not provided, latest is assumed.
         """

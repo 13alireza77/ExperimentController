@@ -8,7 +8,7 @@ class ModelConnectorInterface(ABC):
         pass
 
     @abstractmethod
-    def load(self, model, model_name: str, experiment: str, version: Optional[int]):
+    def load(self, model_name: str, experiment: str, version: Optional[int]):
         pass
 
 
