@@ -2,7 +2,8 @@ from typing import Optional
 
 from mlflow.entities.model_registry import ModelVersion
 
-from registry.model.base import ModelRegistryInterface
+from registry.exception import ModelNotFound
+from registry.model.base import ModelRegistryInterface, BaseModel
 from registry.model.mlflow.connector import Connector
 
 
@@ -29,7 +30,7 @@ class MlFlowModelRegistry(ModelRegistryInterface):
         )
         return self.client.create_model_version(name=model_name, source=model_uri, run_id=run_id)
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]):
+    def load(self, model_name: str, experiment: str, version: Optional[int]) -> BaseModel:
         """
         Load the model using model_name and experiment_manager. Version is optional, if not provided, latest is assumed.
         """
@@ -39,7 +40,22 @@ class MlFlowModelRegistry(ModelRegistryInterface):
                 latest_version_info = max(versions, key=lambda x: int(x.version))
                 version = latest_version_info.version
             else:
-                raise ValueError(f"No versions found for model '{model_name}'.")
+                raise ModelNotFound(
+                    f"No model found for {model_name} under experiment {experiment} with version {version}")
 
         model_uri = f"models:/{model_name}/{version}"
-        return self.client.pyfunc.load_model(model_uri=model_uri)
+        return BaseModel(
+            model=self.client.pyfunc.load_model(model_uri=model_uri),
+            model_name=model_name,
+            version=version,
+            experiment=experiment
+        )
+
+    def get_last_version(self, model_name: str, experiment: str):
+        versions = self.client.search_model_versions(f"name='{model_name}'")
+        if versions:
+            latest_version_info = max(versions, key=lambda x: int(x.version))
+            return latest_version_info.version
+        else:
+            raise ModelNotFound(
+                f"No model found for {model_name} under experiment {experiment}")

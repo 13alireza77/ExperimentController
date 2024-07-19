@@ -1,5 +1,6 @@
 alembic==1.13.1
 aniso8601==9.0.1
+APScheduler==3.10.4
 asgiref==3.8.1
 async-timeout==4.0.3
 backports.zoneinfo==0.2.1
@@ -12,6 +13,7 @@ cloudpickle==3.0.0
 contourpy==1.1.1
 cycler==0.12.1
 Django==4.2.13
+dnspython==2.6.1
 docker==7.0.0
 entrypoints==0.4
 Flask==3.0.3
@@ -42,6 +44,7 @@ pillow==10.3.0
 protobuf==4.25.3
 psycopg2-binary==2.9.9
 pyarrow==15.0.2
+pymongo==4.8.0
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 pytz==2024.1
@@ -58,6 +61,7 @@ sqlparse==0.5.0
 threadpoolctl==3.5.0
 typing_extensions==4.11.0
 tzdata==2024.1
+tzlocal==5.2
 urllib3==2.2.1
 Werkzeug==3.0.3
 zipp==3.18.1

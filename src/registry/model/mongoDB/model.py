@@ -3,14 +3,15 @@ from typing import Optional
 
 import gridfs
 
-from registry.model.base import ModelRegistryInterface
+from registry.exception import ModelNotFound
+from registry.model.base import ModelRegistryInterface, BaseModel
 from registry.model.mongoDB.connector import MongoDBConnector
 
 
 class MongoDBModelRegistry(ModelRegistryInterface):
     def __init__(self, mongo_connector: MongoDBConnector):
-        self.db = mongo_connector.db
-        self.fs = gridfs.GridFS(self.db)
+        self.collection = mongo_connector.collection
+        self.fs = gridfs.GridFS(self.collection)
 
     def register(self, model, model_name: str, experiment: str, version: Optional[int]):
         """
@@ -24,20 +25,38 @@ class MongoDBModelRegistry(ModelRegistryInterface):
             "version": version,
             "model_file_id": file_id
         }
-        self.db.models.insert_one(new_model)
+        self.collection.insert_one(new_model)
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]):
+    def load(self, model_name: str, experiment: str, version: Optional[int])->BaseModel:
         """
         Load the model using model_name, experiment, and version. If version is None, latest is assumed.
         """
         query = {"name": model_name, "experiment": experiment}
         if version is not None:
             query["version"] = version
-        model_document = self.db.models.find_one(query, sort=[("version", -1)])
+        model_document = self.collection.find_one(query, sort=[("version", -1)])
 
         if not model_document:
-            raise ValueError(f"No model found for {model_name} in experiment {experiment} with version {version}.")
+            raise ModelNotFound(f"No model found for {model_name} under experiment {experiment} with version {version}")
 
         model_file = self.fs.get(model_document["model_file_id"])
         model = pickle.loads(model_file.read())
-        return model
+        return BaseModel(
+            model=model,
+            model_name=model_name,
+            version=version,
+            experiment=experiment
+        )
+
+    def get_last_version(self, model_name: str, experiment: str):
+        """
+        Retrieve the latest version number of a model given its name and experiment.
+        """
+        latest_version_document = self.collection.find_one(
+            {"name": model_name, "experiment": experiment},
+            sort=[("version", -1)])
+
+        if not latest_version_document:
+            raise ModelNotFound(f"No versions found for model {model_name} under experiment {experiment}")
+
+        return latest_version_document['version']

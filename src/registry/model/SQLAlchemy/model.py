@@ -1,28 +1,15 @@
 import pickle
 from typing import Optional
 
-from sqlalchemy import Column, Integer, String, LargeBinary
-from sqlalchemy.ext.declarative import declarative_base
-
-from registry.model.SQLAlchemy.connector import PostgresConnector
-from registry.model.base import ModelRegistryInterface
-
-Base = declarative_base()
-
-
-class ModelMetadata(Base):
-    __tablename__ = 'models'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, nullable=False)
-    experiment = Column(String, nullable=False)
-    version = Column(Integer, nullable=True)
-    model_data = Column(LargeBinary, nullable=False)
+from registry.exception import ModelNotFound
+from registry.model.SQLAlchemy.connector import PostgresConnector, ModelMetadata
+from registry.model.base import ModelRegistryInterface, BaseModel
 
 
 class PostgresModelRegistry(ModelRegistryInterface):
     def __init__(self, postgres_connector: PostgresConnector):
         self.session = postgres_connector.get_session()
+        postgres_connector.create_tables()  # Ensure tables are created
 
     def _get_latest_version(self, model_name, experiment):
         return self.session.query(ModelMetadata).filter_by(name=model_name, experiment=experiment).order_by(
@@ -42,7 +29,7 @@ class PostgresModelRegistry(ModelRegistryInterface):
         self.session.add(new_model)
         self.session.commit()
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]):
+    def load(self, model_name: str, experiment: str, version: Optional[int]) -> BaseModel:
         """
         Load the model using model_name, experiment, and version. If the version is None, the latest is assumed.
         """
@@ -50,6 +37,21 @@ class PostgresModelRegistry(ModelRegistryInterface):
             ModelMetadata).filter_by(name=model_name, experiment=experiment, version=version).one_or_none()
 
         if model is None:
-            raise ValueError(f"No model found for {model_name} under experiment {experiment} with version {version}.")
+            raise ModelNotFound(
+                f"No model found for {model_name} under experiment {experiment} with version {version}")
+        return BaseModel(
+            model=pickle.loads(model.model_data),
+            model_name=model_name,
+            version=version,
+            experiment=experiment
+        )
 
-        return pickle.loads(model.model_data)
+    def get_last_version(self, model_name: str, experiment: str):
+        """
+        Retrieve the latest version number of a model given its name and experiment.
+        """
+        latest_version = self._get_latest_version(model_name, experiment)
+        if latest_version is None:
+            raise ModelNotFound(f"No versions found for model {model_name} under experiment {experiment}")
+
+        return latest_version.version
