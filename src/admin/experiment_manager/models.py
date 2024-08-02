@@ -4,10 +4,10 @@ from django.db import models
 from django.db.models import Sum
 from django.db.utils import IntegrityError
 
-from experiment.base import Experiment as CacheExperiment
-from experiment.base import ExperimentFlagType as CacheExperimentFlagType
-from experiment.base import Flag as CacheFlag
-from experiment.experiment_manager import ExperimentManager
+from src.experiment.base import Experiment as CacheExperiment
+from src.experiment.base import ExperimentFlagType as CacheExperimentFlagType
+from src.experiment.base import Flag as CacheFlag
+from src.experiment.experiment_manager import ExperimentManager
 
 
 class ExperimentFlagType(models.IntegerChoices):
@@ -91,7 +91,7 @@ class Experiment(models.Model):
                 name=self.name,
                 flag_name=self.flag.name,
                 flag_value=self.flag_value,
-                layer=self.layer,
+                layer=self.layer.name,
                 share=self.share
             )
             # Save to Redis via ExperimentManager

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Flag, Experiment
+from .models import Flag, Experiment, Layer
 
 
 @admin.register(Flag)
@@ -8,6 +8,12 @@ class FlagAdmin(admin.ModelAdmin):
     list_display = ('name', 'type', 'base_value')
     search_fields = ('name',)
     list_filter = ('type',)
+
+
+@admin.register(Layer)
+class LayerAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
 
 
 @admin.register(Experiment)
@@ -20,7 +26,7 @@ class ExperimentAdmin(admin.ModelAdmin):
             'fields': ('name', 'flag')
         }),
         ('Details', {
-            'fields': ('flag_value', 'share')
+            'fields': ('flag_value', 'share', 'layer')
         }),
     )
 

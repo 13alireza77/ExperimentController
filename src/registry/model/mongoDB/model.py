@@ -4,14 +4,14 @@ from typing import Optional
 import gridfs
 
 from registry.exception import ModelNotFound
-from registry.model.base import ModelRegistryInterface, BaseModel
+from registry.model.base import ModelRegistryInterface, ExperimentModel
 from registry.model.mongoDB.connector import MongoDBConnector
 
 
 class MongoDBModelRegistry(ModelRegistryInterface):
     def __init__(self, mongo_connector: MongoDBConnector):
         self.collection = mongo_connector.collection
-        self.fs = gridfs.GridFS(self.collection)
+        self.fs = gridfs.GridFS(mongo_connector.database, self.collection.name)
 
     def register(self, model, model_name: str, experiment: str, version: Optional[int]):
         """
@@ -27,7 +27,7 @@ class MongoDBModelRegistry(ModelRegistryInterface):
         }
         self.collection.insert_one(new_model)
 
-    def load(self, model_name: str, experiment: str, version: Optional[int])->BaseModel:
+    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
         """
         Load the model using model_name, experiment, and version. If version is None, latest is assumed.
         """
@@ -41,7 +41,7 @@ class MongoDBModelRegistry(ModelRegistryInterface):
 
         model_file = self.fs.get(model_document["model_file_id"])
         model = pickle.loads(model_file.read())
-        return BaseModel(
+        return ExperimentModel(
             model=model,
             model_name=model_name,
             version=version,

@@ -75,8 +75,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'experiment_manager',
-        'USER': 'postgres',
-        'PASSWORD': '123',
+        'USER': 'postgresadmin',
+        'PASSWORD': 'secret',
         'HOST': 'localhost',
         'PORT': '5432',
     }

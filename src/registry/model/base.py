@@ -11,7 +11,12 @@ class ExperimentModel:
     model_name: str
     version: int
     experiment: str
-    _instance: 'ExperimentModel' = field(default=None, init=False, repr=False)
+
+
+@dataclass
+class ExperimentModelSingleton:
+    experiment_model: ExperimentModel = None
+    _instance: 'ExperimentModelSingleton' = field(default=None, init=False, repr=False)
 
     def __new__(cls, *args, **kwargs):
         cls._instance = super().__new__(cls)
@@ -24,14 +29,11 @@ class ExperimentModel:
     def set_instance(cls, instance):
         cls._instance = instance
 
-    def __init__(self, model, model_name, version, experiment):
+    def __init__(self, experiment_model: ExperimentModel):
         if not hasattr(self, '_is_initialized'):
             super().__init__()
-            self.model = model
-            self.model_name = model_name
-            self.version = version
-            self.experiment = experiment
             self._is_initialized = True
+            self.experiment_model = experiment_model
 
 
 class ModelRegistryInterface(ABC):
@@ -40,7 +42,7 @@ class ModelRegistryInterface(ABC):
         pass
 
     @abstractmethod
-    def load(self, model_name: str, experiment: str, version: Optional[int]) -> BaseModel:
+    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
         pass
 
     def get_last_version(self, model_name: str, experiment: str):

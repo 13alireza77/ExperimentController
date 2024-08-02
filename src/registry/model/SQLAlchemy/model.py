@@ -3,7 +3,7 @@ from typing import Optional
 
 from registry.exception import ModelNotFound
 from registry.model.SQLAlchemy.connector import PostgresConnector, ModelMetadata
-from registry.model.base import ModelRegistryInterface, BaseModel
+from registry.model.base import ModelRegistryInterface, ExperimentModel
 
 
 class PostgresModelRegistry(ModelRegistryInterface):
@@ -29,7 +29,7 @@ class PostgresModelRegistry(ModelRegistryInterface):
         self.session.add(new_model)
         self.session.commit()
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]) -> BaseModel:
+    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
         """
         Load the model using model_name, experiment, and version. If the version is None, the latest is assumed.
         """
@@ -39,7 +39,7 @@ class PostgresModelRegistry(ModelRegistryInterface):
         if model is None:
             raise ModelNotFound(
                 f"No model found for {model_name} under experiment {experiment} with version {version}")
-        return BaseModel(
+        return ExperimentModel(
             model=pickle.loads(model.model_data),
             model_name=model_name,
             version=version,

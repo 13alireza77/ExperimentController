@@ -3,7 +3,7 @@ from typing import Optional
 from mlflow.entities.model_registry import ModelVersion
 
 from registry.exception import ModelNotFound
-from registry.model.base import ModelRegistryInterface, BaseModel
+from registry.model.base import ModelRegistryInterface, ExperimentModel
 from registry.model.mlflow.connector import Connector
 
 
@@ -30,7 +30,7 @@ class MlFlowModelRegistry(ModelRegistryInterface):
         )
         return self.client.create_model_version(name=model_name, source=model_uri, run_id=run_id)
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]) -> BaseModel:
+    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
         """
         Load the model using model_name and experiment_manager. Version is optional, if not provided, latest is assumed.
         """
@@ -44,7 +44,7 @@ class MlFlowModelRegistry(ModelRegistryInterface):
                     f"No model found for {model_name} under experiment {experiment} with version {version}")
 
         model_uri = f"models:/{model_name}/{version}"
-        return BaseModel(
+        return ExperimentModel(
             model=self.client.pyfunc.load_model(model_uri=model_uri),
             model_name=model_name,
             version=version,
