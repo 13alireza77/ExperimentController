@@ -1,11 +1,13 @@
 import pickle
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List
 
 import gridfs
 
-from registry.exception import ModelNotFound
-from registry.model.base import ModelRegistryInterface, ExperimentModel
-from registry.model.mongoDB.connector import MongoDBConnector
+from src.experiment.base import AiModel
+from src.registry.exception import ModelNotFound
+from src.registry.model.base import ModelRegistryInterface, ExperimentModel
+from src.registry.model.mongoDB.connector import MongoDBConnector
 
 
 class MongoDBModelRegistry(ModelRegistryInterface):
@@ -19,11 +21,17 @@ class MongoDBModelRegistry(ModelRegistryInterface):
         """
         model_data = pickle.dumps(model)
         file_id = self.fs.put(model_data)
+        if version is None:
+            try:
+                version = self.get_last_version(model_name=model_name, experiment=experiment)
+            except ModelNotFound:
+                version = 0
         new_model = {
             "name": model_name,
             "experiment": experiment,
             "version": version,
-            "model_file_id": file_id
+            "model_file_id": file_id,
+            "created_at": datetime.utcnow(),
         }
         self.collection.insert_one(new_model)
 
@@ -45,7 +53,8 @@ class MongoDBModelRegistry(ModelRegistryInterface):
             model=model,
             model_name=model_name,
             version=version,
-            experiment=experiment
+            experiment=experiment,
+            created_at=model_document['created_at']
         )
 
     def get_last_version(self, model_name: str, experiment: str):
@@ -60,3 +69,19 @@ class MongoDBModelRegistry(ModelRegistryInterface):
             raise ModelNotFound(f"No versions found for model {model_name} under experiment {experiment}")
 
         return latest_version_document['version']
+
+    def get_all_experiments_versions(self, experiments: List[str]):
+        """
+        Retrieve all the versions of a model given its names and a list of experiments, optionally including the creation date.
+        """
+        documents = list(
+            self.collection.find({"experiment": {"$in": experiments}}, {"name": 1, "version": 1, "experiment": 1}).sort(
+                "version", 1))
+
+        if not documents:
+            raise ModelNotFound(f"No versions found under experiments {', '.join(experiments)}")
+
+        return [
+            AiModel(name=doc["name"], experiment_name=doc["experiment"], version=doc["version"], )
+            for doc in documents
+        ]

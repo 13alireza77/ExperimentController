@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models import Sum
 from django.db.utils import IntegrityError
 
-from src.experiment.base import Experiment as CacheExperiment
+from src.experiment.base import Experiment as CacheExperiment, AiModel
 from src.experiment.base import ExperimentFlagType as CacheExperimentFlagType
 from src.experiment.base import Flag as CacheFlag
 from src.experiment.experiment_manager import ExperimentManager
@@ -31,7 +31,6 @@ class Flag(models.Model):
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        super().save(*args, **kwargs)  # Save to the Django DB
         try:
             # Create Redis object representation
             redis_object = CacheFlag(
@@ -42,8 +41,8 @@ class Flag(models.Model):
             # Save to Redis via ExperimentManager
             ExperimentManager.save_flag(redis_object)
         except Exception as ex:  # General exception catching to simplify rollback demonstration
-            self.delete()  # Rollback if Redis save fails
             raise ex
+        super().save(*args, **kwargs)  # Save to the Django DB
 
     def __str__(self):
         return self.name
@@ -57,11 +56,12 @@ class Layer(models.Model):
 
 
 class Experiment(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     flag = models.ForeignKey(Flag, on_delete=models.CASCADE, related_name='experiments')
     flag_value = models.CharField(max_length=255)
     share = models.FloatField(validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
     layer = models.ForeignKey(Layer, on_delete=models.CASCADE, related_name='experiments')
+    ai_model = models.CharField(null=True, blank=True, max_length=255)
 
     def clean(self):
         super().clean()
@@ -84,7 +84,6 @@ class Experiment(models.Model):
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        super().save(*args, **kwargs)  # Save to the Django DB
         try:
             # Create Redis object representation
             redis_object = CacheExperiment(
@@ -92,13 +91,19 @@ class Experiment(models.Model):
                 flag_name=self.flag.name,
                 flag_value=self.flag_value,
                 layer=self.layer.name,
-                share=self.share
+                share=self.share,
+                ai_model=None
             )
+            if self.ai_model:
+                redis_object.ai_model = AiModel.from_string_format(self.ai_model)
+            print("ai_model*******")
+            print(self.ai_model)
+            print(redis_object.ai_model)
             # Save to Redis via ExperimentManager
             ExperimentManager.save_experiment(redis_object)
         except Exception as ex:
-            self.delete()  # Rollback if Redis save fails
-            raise IntegrityError(f"Failed to save to Redis: {ex}")
+            raise ex
+        super().save(*args, **kwargs)  # Save to the Django DB
 
     def __str__(self):
         return self.name

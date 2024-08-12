@@ -1,18 +1,25 @@
 import json
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 import cachetools.func
 
-from src.experiment import redis_connector
-from src.experiment.base import Experiment, Flag, ExperimentFlagType
+from src.registry.exception import ModelNotFound
+from src.experiment.base import Experiment, Flag, ExperimentFlagType, AiModel
 from src.experiment.config import REFRESH_EXPERIMENT_INTERVAL
 from src.experiment.exception import ExperimentNotFound, FlagNotFound
 from src.experiment.redis_connector import RedisConnector
+from src.registry.model.base import ModelRegistryInterface
 
 
 class ExperimentManager:
-    _redis_connector: RedisConnector = redis_connector
+    _redis_connector: RedisConnector
     _experiments_with_cumulative_share = {}
+    _model_registry: ModelRegistryInterface
+
+    @classmethod
+    def initialise(cls, model_registry: ModelRegistryInterface, redis_connector: RedisConnector):
+        cls._model_registry = model_registry
+        cls._redis_connector = redis_connector
 
     @classmethod
     def save_experiment(cls, experiment: Experiment):
@@ -32,7 +39,7 @@ class ExperimentManager:
 
     @classmethod
     def evaluate(cls, flag_name: str, layer: str, layer_value: Optional[Union[str, int]]):
-        cls._load_experiments_by_flag_name(flag_name=flag_name)
+        cls.load_experiments_by_flag_name(flag_name=flag_name)
         if not cls._experiments_with_cumulative_share:
             raise ExperimentNotFound(f"Experiments with flag name:{flag_name} not found")
         experiment_range = cls._experiment_to_range(flag_name, layer, layer_value)
@@ -46,25 +53,38 @@ class ExperimentManager:
         return flag.base_value
 
     @classmethod
+    def get_experiments_ai_models(cls, experiments: List[str]) -> List[AiModel]:
+        try:
+            return cls._model_registry.get_all_experiments_versions(experiments)
+        except ModelNotFound:
+            return []
+
+    @classmethod
     @cachetools.func.ttl_cache(maxsize=10, ttl=REFRESH_EXPERIMENT_INTERVAL)
-    def _load_experiments_by_flag_name(cls, flag_name: str) -> dict:
+    def load_experiments_by_flag_name(cls, flag_name: str):
         all_data = cls._redis_connector.load_experiments_by_flag_name(flag_name)
+        deserialize_experiments = [cls._deserialize_experiment(data) for data in all_data]
         cumulative_share = 0
-        for data in all_data:
-            deserialize_experiment = cls._deserialize_experiment(data)
+        for deserialize_experiment in deserialize_experiments:
             cumulative_share += deserialize_experiment.share
             cls._experiments_with_cumulative_share[cumulative_share] = deserialize_experiment
+        return deserialize_experiments
 
     @classmethod
     def _deserialize_experiment(cls, item: str) -> Experiment:
         data = json.loads(item)
-        return Experiment(
+        experiment = Experiment(
             name=data['name'],
             flag_name=data['flag_name'],
             flag_value=data['flag_value'],
             share=data['share'],
             layer=data['layer'],
+            ai_model=None
+
         )
+        if data.get('ai_model'):
+            experiment.ai_model = AiModel.from_dict(data['ai_model'])
+        return experiment
 
     @classmethod
     def _experiment_to_range(cls, flag_name, layer, layer_value):

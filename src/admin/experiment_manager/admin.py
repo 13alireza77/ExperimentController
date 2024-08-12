@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from .forms import ExperimentForm
 from .models import Flag, Experiment, Layer
 
 
@@ -26,9 +27,10 @@ class ExperimentAdmin(admin.ModelAdmin):
             'fields': ('name', 'flag')
         }),
         ('Details', {
-            'fields': ('flag_value', 'share', 'layer')
+            'fields': ('flag_value', 'share', 'layer', 'ai_model')
         }),
     )
+    form = ExperimentForm
 
     def get_queryset(self, request):
         # Optimize queries with select_related
@@ -36,14 +38,14 @@ class ExperimentAdmin(admin.ModelAdmin):
         queryset = queryset.select_related('flag')
         return queryset
 
-    def save_model(self, request, obj, form, change):
-        obj.save()
-        if not change:  # Additional actions for new objects
-            # Custom action for new objects can be included here
-            pass
-
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if db_field.name == "flag":
-            # Custom querysets or conditions for foreignkey fields can be handled here
-            pass
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+    # def save_model(self, request, obj, form, change):
+    #     obj.save()
+    #     if not change:  # Additional actions for new objects
+    #         # Custom action for new objects can be included here
+    #         pass
+    #
+    # def formfield_for_foreignkey(self, db_field, request, **kwargs):
+    #     if db_field.name == "flag":
+    #         # Custom querysets or conditions for foreignkey fields can be handled here
+    #         pass
+    #     return super().formfield_for_foreignkey(db_field, request, **kwargs)

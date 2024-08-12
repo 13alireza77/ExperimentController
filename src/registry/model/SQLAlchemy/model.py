@@ -1,9 +1,11 @@
 import pickle
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List
 
-from registry.exception import ModelNotFound
-from registry.model.SQLAlchemy.connector import PostgresConnector, ModelMetadata
-from registry.model.base import ModelRegistryInterface, ExperimentModel
+from experiment.base import AiModel
+from src.registry.exception import ModelNotFound
+from src.registry.model.SQLAlchemy.connector import PostgresConnector, ModelMetadata
+from src.registry.model.base import ModelRegistryInterface, ExperimentModel
 
 
 class PostgresModelRegistry(ModelRegistryInterface):
@@ -19,12 +21,18 @@ class PostgresModelRegistry(ModelRegistryInterface):
         """
         Register a new model or create a new version in PostgreSQL.
         """
+        if version is None:
+            try:
+                version = self.get_last_version(model_name=model_name, experiment=experiment)
+            except ModelNotFound:
+                version = 0
         model_data = pickle.dumps(model)
         new_model = ModelMetadata(
             name=model_name,
             experiment=experiment,
             version=version,
-            model_data=model_data
+            model_data=model_data,
+            created_at=datetime.utcnow(),
         )
         self.session.add(new_model)
         self.session.commit()
@@ -43,7 +51,8 @@ class PostgresModelRegistry(ModelRegistryInterface):
             model=pickle.loads(model.model_data),
             model_name=model_name,
             version=version,
-            experiment=experiment
+            experiment=experiment,
+            created_at=model.created_at,
         )
 
     def get_last_version(self, model_name: str, experiment: str):
@@ -55,3 +64,17 @@ class PostgresModelRegistry(ModelRegistryInterface):
             raise ModelNotFound(f"No versions found for model {model_name} under experiment {experiment}")
 
         return latest_version.version
+
+    def get_all_experiments_versions(self, experiments: List[str]):
+        """
+        Retrieve all the versions of a model given a list of experiment names.
+        """
+        query = (ModelMetadata.name, ModelMetadata.version, ModelMetadata.experiment)
+
+        versions = self.session.query(*query).filter(ModelMetadata.experiment.in_(experiments)) \
+            .order_by(ModelMetadata.version).all()
+        if not versions:
+            raise ModelNotFound(f"No versions found under experiments {', '.join(experiments)}")
+
+        return [AiModel(name=name, experiment_name=experiment, version=version)
+                for name, version, experiment in versions]

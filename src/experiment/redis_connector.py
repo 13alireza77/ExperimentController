@@ -28,7 +28,12 @@ class RedisConnector:
     @classmethod
     def save_experiment(cls, experiment: Experiment, ttl: Optional[int] = None):
         key = cls._get_flag_experiments_key(experiment.flag_name)
-        cls._redis_client.hset(key, experiment.name, json.dumps(dataclasses.asdict(experiment)))
+        experiment_data = dataclasses.asdict(experiment)
+        if experiment.ai_model:
+            experiment_data['ai_model'] = experiment.ai_model.to_dict()
+        else:
+            experiment_data['ai_model'] = None
+        cls._redis_client.hset(key, experiment.name, json.dumps(experiment_data))
         if ttl:
             cls._redis_client.expire(key, ttl)
 
@@ -56,3 +61,7 @@ class RedisConnector:
     @classmethod
     def delete_experiment(cls, flag_name: str, experiment_name: str):
         cls._redis_client.hdel(cls._get_flag_experiments_key(flag_name), experiment_name)
+
+    @classmethod
+    def delete_flag(cls, flag_name: str):
+        cls._redis_client.delete(cls._get_flag_key(flag_name))

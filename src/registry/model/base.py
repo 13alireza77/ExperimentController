@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -11,6 +12,7 @@ class ExperimentModel:
     model_name: str
     version: int
     experiment: str
+    created_at: datetime
 
 
 @dataclass
@@ -45,7 +47,12 @@ class ModelRegistryInterface(ABC):
     def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
         pass
 
+    @abstractmethod
     def get_last_version(self, model_name: str, experiment: str):
+        pass
+
+    @abstractmethod
+    def get_all_experiments_versions(self, experiments: List[str]):
         pass
 
 

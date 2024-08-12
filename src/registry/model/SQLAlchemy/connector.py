@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, LargeBinary
+from sqlalchemy import Column, Integer, String, LargeBinary, DateTime, func
 from sqlalchemy import Index
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -27,6 +27,7 @@ class ModelMetadata(Base):
     experiment = Column(String, nullable=False)
     version = Column(Integer, nullable=True)
     model_data = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index('idx_name_experiment', 'name', 'experiment'),  # Index for name and experiment

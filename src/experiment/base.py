@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 
 class ExperimentFlagType(str, Enum):
@@ -17,11 +17,34 @@ class Flag:
 
 
 @dataclass
+class AiModel:
+    name: str
+    experiment_name: str
+    version: int
+
+    @classmethod
+    def from_string_format(cls, data):
+        split_data = data.split(' | ')
+        return AiModel(split_data[1], split_data[0], split_data[2])
+
+    def to_string_format(self):
+        return f'{self.experiment_name} | {self.name} | {self.version}'
+
+    def to_dict(self):
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(**data)
+
+
+@dataclass
 class Experiment:
     name: str
     flag_name: str
     flag_value: Any
     layer: str
+    ai_model: Optional[AiModel]
     '''
     share is between 0 and 1
     '''
