@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, LargeBinary, DateTime, func
 from sqlalchemy import Index
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -24,9 +25,11 @@ class ModelMetadata(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
-    experiment = Column(String, nullable=False)
+    experiments = Column(JSONB, nullable=False)
+    flag = Column(String, nullable=True)
     version = Column(Integer, nullable=True)
     model_data = Column(LargeBinary, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

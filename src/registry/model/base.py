@@ -1,9 +1,11 @@
-from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
 from apscheduler.schedulers.background import BackgroundScheduler
+
+from src.experiment.base import AiModel
 
 
 @dataclass
@@ -12,7 +14,7 @@ class ExperimentModel:
     model_name: str
     version: int
     experiment: str
-    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass
@@ -39,20 +41,26 @@ class ExperimentModelSingleton:
 
 
 class ModelRegistryInterface(ABC):
+    STARTING_VERSION = 1
+
     @abstractmethod
-    def register(self, model, model_name: str, experiment: str, version: Optional[int]):
+    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None):
         pass
 
     @abstractmethod
-    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
+    def update(self, model_name: str, flag: str, experiments: List[str], version: int) -> None:
         pass
 
     @abstractmethod
-    def get_last_version(self, model_name: str, experiment: str):
+    def load(self, experiment: str, model_name: Optional[str] = None, version: Optional[int] = None) -> ExperimentModel:
         pass
 
     @abstractmethod
-    def get_all_experiments_versions(self, experiments: List[str]):
+    def get_last_version_by_flag(self, model_name: str, experiment: str):
+        pass
+
+    @abstractmethod
+    def get_all_flag_models(self, flag: str) -> List[AiModel]:
         pass
 
 
@@ -64,7 +72,7 @@ class ModelLoaderInterface(ABC):
         self.check_interval = check_interval  # Check interval in seconds
 
     @abstractmethod
-    def add_scheduler(self, model_name: str, experiment: str):
+    def add_scheduler(self, model_name: str, flag: str, experiment: str):
         pass
 
     def start_scheduler(self):

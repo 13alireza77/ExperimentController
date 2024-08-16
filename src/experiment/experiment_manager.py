@@ -3,12 +3,12 @@ from typing import Optional, Union, List
 
 import cachetools.func
 
-from src.registry.exception import ModelNotFound
 from src.experiment.base import Experiment, Flag, ExperimentFlagType, AiModel
 from src.experiment.config import REFRESH_EXPERIMENT_INTERVAL
 from src.experiment.exception import ExperimentNotFound, FlagNotFound
 from src.experiment.redis_connector import RedisConnector
-from src.registry.model.base import ModelRegistryInterface
+from src.registry.exception import ModelNotFound
+from src.registry.model.base import ModelRegistryInterface, ExperimentModel
 
 
 class ExperimentManager:
@@ -24,22 +24,33 @@ class ExperimentManager:
     @classmethod
     def save_experiment(cls, experiment: Experiment):
         cls._redis_connector.save_experiment(experiment)
+        if experiment.ai_model:
+            cls._model_registry.update(model_name=experiment.ai_model.name, flag=experiment.flag_name,
+                                       version=experiment.ai_model.version, experiments=[experiment.name])
+
+    @classmethod
+    def delete_experiment(cls, flag_name: str, experiment_name: str):
+        cls._redis_connector.delete_experiment(flag_name, experiment_name)
 
     @classmethod
     def save_flag(cls, flag: Flag):
         cls._redis_connector.save_flag(flag)
 
     @classmethod
+    def delete_flag(cls, flag_name: str):
+        cls._redis_connector.delete_flag(flag_name)
+
+    @classmethod
     @cachetools.func.ttl_cache(maxsize=10, ttl=REFRESH_EXPERIMENT_INTERVAL)
-    def _load_flag(cls, flag_name: str) -> Optional[Flag]:
-        data = cls._redis_connector.load_flag(flag_name)
+    def _get_flag(cls, flag_name: str) -> Optional[Flag]:
+        data = cls._redis_connector.get_flag(flag_name)
         if data:
             return cls._deserialize_flag(data)
         return None
 
     @classmethod
     def evaluate(cls, flag_name: str, layer: str, layer_value: Optional[Union[str, int]]):
-        cls.load_experiments_by_flag_name(flag_name=flag_name)
+        cls.get_experiments_by_flag_name(flag_name=flag_name)
         if not cls._experiments_with_cumulative_share:
             raise ExperimentNotFound(f"Experiments with flag name:{flag_name} not found")
         experiment_range = cls._experiment_to_range(flag_name, layer, layer_value)
@@ -47,28 +58,40 @@ class ExperimentManager:
             if experiment_range <= cumulative_share:
                 return experiment.flag_value
 
-        flag = cls._load_flag(flag_name)
+        flag = cls._get_flag(flag_name)
         if not flag:
             raise FlagNotFound(f"Flag with name:{flag_name} not found")
         return flag.base_value
 
     @classmethod
-    def get_experiments_ai_models(cls, experiments: List[str]) -> List[AiModel]:
+    def get_flag_ai_models(cls, flag: str) -> List[AiModel]:
         try:
-            return cls._model_registry.get_all_experiments_versions(experiments)
+            return cls._model_registry.get_all_flag_models(flag)
         except ModelNotFound:
             return []
 
     @classmethod
+    def get_experiment_ai_model(cls, experiment: str) -> Optional[ExperimentModel]:
+        try:
+            return cls._model_registry.load(experiment)
+        except ModelNotFound:
+            return None
+
+    @classmethod
     @cachetools.func.ttl_cache(maxsize=10, ttl=REFRESH_EXPERIMENT_INTERVAL)
-    def load_experiments_by_flag_name(cls, flag_name: str):
-        all_data = cls._redis_connector.load_experiments_by_flag_name(flag_name)
+    def get_experiments_by_flag_name(cls, flag_name: str):
+        all_data = cls._redis_connector.get_experiments_by_flag_name(flag_name)
         deserialize_experiments = [cls._deserialize_experiment(data) for data in all_data]
         cumulative_share = 0
         for deserialize_experiment in deserialize_experiments:
             cumulative_share += deserialize_experiment.share
             cls._experiments_with_cumulative_share[cumulative_share] = deserialize_experiment
         return deserialize_experiments
+
+    @classmethod
+    def get_experiment_by_flag_name(cls, flag_name: str, experiment_name: str):
+        experiment = cls._redis_connector.get_experiment_by_flag_name(flag_name, experiment_name)
+        return cls._deserialize_experiment(experiment)
 
     @classmethod
     def _deserialize_experiment(cls, item: str) -> Experiment:

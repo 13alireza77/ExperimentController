@@ -34,7 +34,7 @@ class Flag(models.Model):
         try:
             # Create Redis object representation
             redis_object = CacheFlag(
-                name=self.name.__str__(),
+                name=self.name,
                 type=CacheExperimentFlagType(ExperimentFlagType(self.type).name),
                 base_value=self.base_value
             )
@@ -43,6 +43,13 @@ class Flag(models.Model):
         except Exception as ex:  # General exception catching to simplify rollback demonstration
             raise ex
         super().save(*args, **kwargs)  # Save to the Django DB
+
+    def delete(self, *args, **kwargs):
+        try:
+            ExperimentManager.delete_flag(self.name)
+        except Exception as ex:
+            raise ex
+        super().delete(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -96,14 +103,18 @@ class Experiment(models.Model):
             )
             if self.ai_model:
                 redis_object.ai_model = AiModel.from_string_format(self.ai_model)
-            print("ai_model*******")
-            print(self.ai_model)
-            print(redis_object.ai_model)
             # Save to Redis via ExperimentManager
             ExperimentManager.save_experiment(redis_object)
         except Exception as ex:
             raise ex
         super().save(*args, **kwargs)  # Save to the Django DB
+
+    def delete(self, *args, **kwargs):
+        try:
+            ExperimentManager.delete_experiment(self.flag.name, self.name)
+        except Exception as ex:
+            raise ex
+        super().delete(*args, **kwargs)
 
     def __str__(self):
         return self.name

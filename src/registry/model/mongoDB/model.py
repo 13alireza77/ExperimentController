@@ -15,33 +15,55 @@ class MongoDBModelRegistry(ModelRegistryInterface):
         self.collection = mongo_connector.collection
         self.fs = gridfs.GridFS(mongo_connector.database, self.collection.name)
 
-    def register(self, model, model_name: str, experiment: str, version: Optional[int]):
+    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None):
         """
         Register a new model or create a new version in MongoDB.
         """
+        current_time = datetime.utcnow()
+
         model_data = pickle.dumps(model)
         file_id = self.fs.put(model_data)
-        if version is None:
-            try:
-                version = self.get_last_version(model_name=model_name, experiment=experiment)
-            except ModelNotFound:
-                version = 0
+
         new_model = {
             "name": model_name,
-            "experiment": experiment,
-            "version": version,
+            "flag": flag,
+            "experiments": experiments,
             "model_file_id": file_id,
-            "created_at": datetime.utcnow(),
+            "updated_at": current_time,
         }
+
+        if version is None:
+            try:
+                new_model['version'] = self.get_last_version_by_flag(model_name=model_name, flag=flag)['version']
+            except ModelNotFound:
+                new_model['version'] = self.STARTING_VERSION
+                new_model['created_at'] = current_time
+        else:
+            new_model['version'] = version
+
         self.collection.insert_one(new_model)
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
+    def update(self, model_name: str, flag: str, experiments: List[str], version: int) -> None:
+        """
+        Register a new model or create a new version in MongoDB.
+        """
+        self.collection.find_one_and_update(
+            filter={"flag": flag, "name": model_name, "version": version},
+            update={
+                "$set": {"updated_at": datetime.utcnow()},
+                "$addToSet": {"experiments": {"$each": experiments}}
+            }, return_document=False)
+
+    def load(self, experiment: str, model_name: Optional[str] = None, version: Optional[int] = None) -> ExperimentModel:
         """
         Load the model using model_name, experiment, and version. If version is None, latest is assumed.
         """
-        query = {"name": model_name, "experiment": experiment}
-        if version is not None:
+        query = {"experiments": {"$in": [experiment]}}
+        if version:
             query["version"] = version
+        if model_name:
+            query["name"] = model_name
+
         model_document = self.collection.find_one(query, sort=[("version", -1)])
 
         if not model_document:
@@ -51,37 +73,34 @@ class MongoDBModelRegistry(ModelRegistryInterface):
         model = pickle.loads(model_file.read())
         return ExperimentModel(
             model=model,
-            model_name=model_name,
-            version=version,
+            model_name=model_document['name'],
+            version=model_document['version'],
             experiment=experiment,
-            created_at=model_document['created_at']
+            updated_at=model_document['updated_at']
         )
 
-    def get_last_version(self, model_name: str, experiment: str):
+    def get_last_version_by_flag(self, model_name: str, flag: str) -> dict:
         """
         Retrieve the latest version number of a model given its name and experiment.
         """
         latest_version_document = self.collection.find_one(
-            {"name": model_name, "experiment": experiment},
+            {"flag": flag, "name": model_name},
             sort=[("version", -1)])
 
         if not latest_version_document:
-            raise ModelNotFound(f"No versions found for model {model_name} under experiment {experiment}")
+            raise ModelNotFound(f"No versions found for model {model_name} under flag {flag}")
 
-        return latest_version_document['version']
+        return latest_version_document
 
-    def get_all_experiments_versions(self, experiments: List[str]):
+    def get_all_flag_models(self, flag: str) -> List[AiModel]:
         """
         Retrieve all the versions of a model given its names and a list of experiments, optionally including the creation date.
         """
         documents = list(
-            self.collection.find({"experiment": {"$in": experiments}}, {"name": 1, "version": 1, "experiment": 1}).sort(
+            self.collection.find({"flag": flag}, {"name": 1, "version": 1}).sort(
                 "version", 1))
 
         if not documents:
-            raise ModelNotFound(f"No versions found under experiments {', '.join(experiments)}")
+            raise ModelNotFound(f"No versions found under flag {flag}")
 
-        return [
-            AiModel(name=doc["name"], experiment_name=doc["experiment"], version=doc["version"], )
-            for doc in documents
-        ]
+        return [AiModel(name=doc["name"], version=doc["version"]) for doc in documents]

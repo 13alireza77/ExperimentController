@@ -13,68 +13,104 @@ class PostgresModelRegistry(ModelRegistryInterface):
         self.session = postgres_connector.get_session()
         postgres_connector.create_tables()  # Ensure tables are created
 
-    def _get_latest_version(self, model_name, experiment):
-        return self.session.query(ModelMetadata).filter_by(name=model_name, experiment=experiment).order_by(
-            ModelMetadata.version.desc()).first()
-
-    def register(self, model, model_name: str, experiment: str, version: Optional[int]):
+    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None):
         """
         Register a new model or create a new version in PostgreSQL.
         """
-        if version is None:
-            try:
-                version = self.get_last_version(model_name=model_name, experiment=experiment)
-            except ModelNotFound:
-                version = 0
+        current_time = datetime.utcnow()
         model_data = pickle.dumps(model)
         new_model = ModelMetadata(
             name=model_name,
-            experiment=experiment,
-            version=version,
+            flag=flag,
+            experiments=experiments,
             model_data=model_data,
-            created_at=datetime.utcnow(),
+            updated_at=current_time,
         )
+
+        if version is None:
+            try:
+                latest_model = self.get_last_version_by_flag(model_name=model_name, flag=flag)
+                new_model.version = latest_model.version + 1
+            except ModelNotFound:
+                new_model.version = self.STARTING_VERSION
+                new_model.created_at = current_time
+        else:
+            new_model.version = version
+
         self.session.add(new_model)
         self.session.commit()
 
-    def load(self, model_name: str, experiment: str, version: Optional[int]) -> ExperimentModel:
+    def load(self, experiment: str, model_name: Optional[str] = None, version: Optional[int] = None) -> ExperimentModel:
         """
         Load the model using model_name, experiment, and version. If the version is None, the latest is assumed.
         """
-        model = self._get_latest_version(model_name, experiment) if version is None else self.session.query(
-            ModelMetadata).filter_by(name=model_name, experiment=experiment, version=version).one_or_none()
+        query = self.session.query(ModelMetadata).filter(ModelMetadata.experiments.contains([experiment]))
+
+        if version is None:
+            query = query.order_by(ModelMetadata.version.desc())
+        else:
+            query = query.filter(ModelMetadata.version == version)
+
+        if model_name:
+            query = query.filter(ModelMetadata.name == model_name)
+
+        model = query.first()
 
         if model is None:
             raise ModelNotFound(
                 f"No model found for {model_name} under experiment {experiment} with version {version}")
         return ExperimentModel(
             model=pickle.loads(model.model_data),
-            model_name=model_name,
-            version=version,
+            model_name=model.name,
+            version=model.version,
             experiment=experiment,
-            created_at=model.created_at,
+            updated_at=model.updated_at,
         )
 
-    def get_last_version(self, model_name: str, experiment: str):
+    def update(self, model_name: str, flag: str, experiments: List[str], version: int) -> None:
+        model_record = self.session.query(ModelMetadata).filter(
+            ModelMetadata.name == model_name,
+            ModelMetadata.flag == flag,
+            ModelMetadata.version == version
+        ).first()
+
+        if not model_record:
+            raise ModelNotFound(f"Model {model_name} with flag {flag} and version {version} not found.")
+
+        # Extend the current experiments list with new experiments avoiding duplicates
+        if model_record.experiments is not None:
+            updated_experiments = list(set(model_record.experiments + experiments))
+        else:
+            updated_experiments = experiments
+
+        # Update the experiments field and modified timestamp
+        model_record.experiments = updated_experiments
+        model_record.updated_at = datetime.utcnow()
+
+        # Commit transaction
+        self.session.commit()
+
+    def get_last_version_by_flag(self, model_name: str, flag: str) -> ModelMetadata:
         """
         Retrieve the latest version number of a model given its name and experiment.
         """
-        latest_version = self._get_latest_version(model_name, experiment)
-        if latest_version is None:
-            raise ModelNotFound(f"No versions found for model {model_name} under experiment {experiment}")
+        latest_version = self.session.query(ModelMetadata.version).filter(ModelMetadata.name == model_name,
+                                                                          ModelMetadata.flag == flag).order_by(
+            ModelMetadata.version.desc()).one_or_none()
 
-        return latest_version.version
+        if not latest_version:
+            raise ModelNotFound(f"No versions found for model {model_name} under flag {flag}")
+        return latest_version
 
-    def get_all_experiments_versions(self, experiments: List[str]):
+    def get_all_flag_models(self, flag: str) -> List[AiModel]:
         """
         Retrieve all the versions of a model given a list of experiment names.
         """
-        query = (ModelMetadata.name, ModelMetadata.version, ModelMetadata.experiment)
+        query = (ModelMetadata.name, ModelMetadata.version)
 
-        versions = self.session.query(*query).filter(ModelMetadata.experiment.in_(experiments)) \
+        models = self.session.query(*query).filter(ModelMetadata.flag.is_(flag)) \
             .order_by(ModelMetadata.version).all()
-        if not versions:
-            raise ModelNotFound(f"No versions found under experiments {', '.join(experiments)}")
+        if not models:
+            raise ModelNotFound(f"No versions found under flag {flag}")
 
-        return [AiModel(name=name, experiment_name=experiment, version=version)
-                for name, version, experiment in versions]
+        return [AiModel(name=name, version=version) for name, version in models]

@@ -45,12 +45,16 @@ class RedisConnector:
             cls._redis_client.expire(key, ttl)
 
     @classmethod
-    def load_experiments_by_flag_name(cls, flag_name: str):
+    def get_experiments_by_flag_name(cls, flag_name: str):
         key = cls._get_flag_experiments_key(flag_name)
         return cls._redis_client.hvals(key)
 
     @classmethod
-    def load_flag(cls, flag_name: str):
+    def get_experiment_by_flag_name(cls, flag_name: str, experiment_name: str):
+        return cls._redis_client.hget(cls._get_flag_experiments_key(flag_name), experiment_name)
+
+    @classmethod
+    def get_flag(cls, flag_name: str):
         key = cls._get_flag_key(flag_name)
         return cls._redis_client.get(key)
 

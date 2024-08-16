@@ -19,16 +19,15 @@ class Flag:
 @dataclass
 class AiModel:
     name: str
-    experiment_name: str
     version: int
 
     @classmethod
     def from_string_format(cls, data):
         split_data = data.split(' | ')
-        return AiModel(split_data[1], split_data[0], split_data[2])
+        return AiModel(split_data[0], int(split_data[1]))
 
     def to_string_format(self):
-        return f'{self.experiment_name} | {self.name} | {self.version}'
+        return f'{self.name} | {self.version}'
 
     def to_dict(self):
         return asdict(self)
