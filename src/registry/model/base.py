@@ -13,38 +13,52 @@ class ExperimentModel:
     model: object
     model_name: str
     version: int
-    experiment: str
+    experiment: Optional[str]
+    flag: str
     updated_at: datetime
 
 
 @dataclass
 class ExperimentModelSingleton:
     experiment_model: ExperimentModel = None
-    _instance: 'ExperimentModelSingleton' = field(default=None, init=False, repr=False)
+    _instances: dict = field(default_factory=dict, init=False, repr=False)
 
-    def __new__(cls, *args, **kwargs):
-        cls._instance = super().__new__(cls)
-
-    @classmethod
-    def get_instance(cls):
-        return cls._instance
-
-    @classmethod
-    def set_instance(cls, instance):
-        cls._instance = instance
+    def __new__(cls, experiment_model: ExperimentModel):
+        key = experiment_model.experiment or experiment_model.flag
+        if experiment_model.experiment not in cls._instances:
+            instance = super().__new__(cls)
+            instance.experiment_model = experiment_model
+            instance._is_initialized = False
+            cls._instances[key] = instance
+        return cls._instances[key]
 
     def __init__(self, experiment_model: ExperimentModel):
-        if not hasattr(self, '_is_initialized'):
-            super().__init__()
-            self._is_initialized = True
+        if not self._is_initialized:
             self.experiment_model = experiment_model
+            self._is_initialized = True
+
+    @classmethod
+    def get_instance(cls, experiment: str) -> ExperimentModel:
+        cls._ensure_instances_initialized()
+        experiment_model_singleton = cls._instances.get(experiment, None)
+        if experiment_model_singleton:
+            return experiment_model_singleton.experiment_model
+
+    @classmethod
+    def _ensure_instances_initialized(cls):
+        if '_instances' not in cls.__dict__:
+            cls._instances = {}
+
+    @classmethod
+    def clear_instances(cls):
+        cls._instances.clear()
 
 
 class ModelRegistryInterface(ABC):
     STARTING_VERSION = 1
 
     @abstractmethod
-    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None):
+    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None) -> int:
         pass
 
     @abstractmethod
@@ -52,15 +66,16 @@ class ModelRegistryInterface(ABC):
         pass
 
     @abstractmethod
-    def load(self, experiment: str, model_name: Optional[str] = None, version: Optional[int] = None) -> ExperimentModel:
+    def load(self, flag: str, experiment: str = None, model_name: Optional[str] = None,
+             version: Optional[int] = None) -> ExperimentModel:
         pass
 
     @abstractmethod
-    def get_last_version_by_flag(self, model_name: str, experiment: str):
+    def get_last_version(self, flag: str, model_name: str = None, experiment: Optional[str] = None) -> int:
         pass
 
     @abstractmethod
-    def get_all_flag_models(self, flag: str) -> List[AiModel]:
+    def get_all_flag_models_specifications(self, flag: str) -> List[AiModel]:
         pass
 
 
@@ -77,18 +92,3 @@ class ModelLoaderInterface(ABC):
 
     def start_scheduler(self):
         pass
-
-#
-# class Registry:
-#
-#     def __init__(
-#             self,
-#             model_connector: ModelConnectorInterface,
-#     ):
-#         self._model_connector = model_connector
-#
-#     def register_model(self, model, model_name: str, experiment: str, version: Optional[int]):
-#         self._model_connector.register(model, model_name, experiment, version)
-#
-#     def load_model(self, model, model_name: str, experiment: str, version: Optional[int]):
-#         self._model_connector.load(model, model_name, experiment, version)

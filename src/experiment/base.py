@@ -10,13 +10,6 @@ class ExperimentFlagType(str, Enum):
 
 
 @dataclass
-class Flag:
-    name: str
-    type: ExperimentFlagType
-    base_value: Any
-
-
-@dataclass
 class AiModel:
     name: str
     version: int
@@ -35,6 +28,14 @@ class AiModel:
     @classmethod
     def from_dict(cls, data):
         return cls(**data)
+
+
+@dataclass
+class Flag:
+    name: str
+    type: ExperimentFlagType
+    base_value: Any
+    ai_model: Optional[AiModel]
 
 
 @dataclass

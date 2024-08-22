@@ -2,7 +2,6 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import Sum
-from django.db.utils import IntegrityError
 
 from src.experiment.base import Experiment as CacheExperiment, AiModel
 from src.experiment.base import ExperimentFlagType as CacheExperimentFlagType
@@ -16,10 +15,14 @@ class ExperimentFlagType(models.IntegerChoices):
     STRING = 3, 'String'
 
 
+LATEST_MODEL_VERSION = 'latest_version'
+
+
 class Flag(models.Model):
     name = models.CharField(max_length=255, unique=True)
     type = models.IntegerField(choices=ExperimentFlagType.choices)
     base_value = models.CharField(max_length=255)
+    ai_model = models.CharField(null=True, blank=True, max_length=255)
 
     def clean(self):
         super().clean()
@@ -36,8 +39,15 @@ class Flag(models.Model):
             redis_object = CacheFlag(
                 name=self.name,
                 type=CacheExperimentFlagType(ExperimentFlagType(self.type).name),
-                base_value=self.base_value
+                base_value=self.base_value,
+                ai_model=None,
             )
+            if self.ai_model:
+                self.ai_model.replace(' ✅', '')
+                if self.ai_model == LATEST_MODEL_VERSION:
+                    redis_object.ai_model = None
+                else:
+                    redis_object.ai_model = AiModel.from_string_format(self.ai_model)
             # Save to Redis via ExperimentManager
             ExperimentManager.save_flag(redis_object)
         except Exception as ex:  # General exception catching to simplify rollback demonstration
@@ -102,7 +112,11 @@ class Experiment(models.Model):
                 ai_model=None
             )
             if self.ai_model:
-                redis_object.ai_model = AiModel.from_string_format(self.ai_model)
+                self.ai_model.replace(' ✅', '')
+                if self.ai_model == LATEST_MODEL_VERSION:
+                    redis_object.ai_model = None
+                else:
+                    redis_object.ai_model = AiModel.from_string_format(self.ai_model)
             # Save to Redis via ExperimentManager
             ExperimentManager.save_experiment(redis_object)
         except Exception as ex:

@@ -13,7 +13,7 @@ class PostgresModelRegistry(ModelRegistryInterface):
         self.session = postgres_connector.get_session()
         postgres_connector.create_tables()  # Ensure tables are created
 
-    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None):
+    def register(self, model, model_name: str, flag: str, experiments: List[str], version: Optional[int] = None) -> int:
         """
         Register a new model or create a new version in PostgreSQL.
         """
@@ -29,8 +29,8 @@ class PostgresModelRegistry(ModelRegistryInterface):
 
         if version is None:
             try:
-                latest_model = self.get_last_version_by_flag(model_name=model_name, flag=flag)
-                new_model.version = latest_model.version + 1
+                last_version = self.get_last_version(flag=flag) + 1
+                new_model.version = last_version
             except ModelNotFound:
                 new_model.version = self.STARTING_VERSION
                 new_model.created_at = current_time
@@ -40,11 +40,17 @@ class PostgresModelRegistry(ModelRegistryInterface):
         self.session.add(new_model)
         self.session.commit()
 
-    def load(self, experiment: str, model_name: Optional[str] = None, version: Optional[int] = None) -> ExperimentModel:
+        return new_model.version
+
+    def load(self, flag: str, experiment: str = None, model_name: Optional[str] = None,
+             version: Optional[int] = None) -> ExperimentModel:
         """
         Load the model using model_name, experiment, and version. If the version is None, the latest is assumed.
         """
-        query = self.session.query(ModelMetadata).filter(ModelMetadata.experiments.contains([experiment]))
+        query = self.session.query(ModelMetadata).filter(ModelMetadata.flag == flag)
+
+        if experiment:
+            query = query.filter(ModelMetadata.experiments.contains([experiment]))
 
         if version is None:
             query = query.order_by(ModelMetadata.version.desc())
@@ -65,6 +71,7 @@ class PostgresModelRegistry(ModelRegistryInterface):
             version=model.version,
             experiment=experiment,
             updated_at=model.updated_at,
+            flag=model.flag,
         )
 
     def update(self, model_name: str, flag: str, experiments: List[str], version: int) -> None:
@@ -90,19 +97,26 @@ class PostgresModelRegistry(ModelRegistryInterface):
         # Commit transaction
         self.session.commit()
 
-    def get_last_version_by_flag(self, model_name: str, flag: str) -> ModelMetadata:
+    def get_last_version(self, flag: str, model_name: str = None, experiment: Optional[str] = None) -> int:
         """
         Retrieve the latest version number of a model given its name and experiment.
         """
-        latest_version = self.session.query(ModelMetadata.version).filter(ModelMetadata.name == model_name,
-                                                                          ModelMetadata.flag == flag).order_by(
-            ModelMetadata.version.desc()).one_or_none()
+
+        query = self.session.query(ModelMetadata.version).filter(ModelMetadata.flag == flag)
+
+        if model_name:
+            query = query.filter(ModelMetadata.name == model_name)
+
+        if experiment:
+            query = query.filter(ModelMetadata.experiments.contains([experiment]))
+
+        latest_version = query.order_by(ModelMetadata.version.desc()).one_or_none()
 
         if not latest_version:
             raise ModelNotFound(f"No versions found for model {model_name} under flag {flag}")
         return latest_version
 
-    def get_all_flag_models(self, flag: str) -> List[AiModel]:
+    def get_all_flag_models_specifications(self, flag: str) -> List[AiModel]:
         """
         Retrieve all the versions of a model given a list of experiment names.
         """

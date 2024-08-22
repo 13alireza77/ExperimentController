@@ -15,6 +15,19 @@ class RedisConnector:
     @classmethod
     def initialise(cls, redis_client: redis.Redis):
         cls._redis_client = redis_client
+
+        # Configure RDB to snapshot less frequently
+        # Save every 5 minutes if at least 1 keys change
+        cls._redis_client.config_set('save', '300 1')
+
+        # Enable AOF with everysec fsync policy
+        cls._redis_client.config_set('appendonly', 'yes')
+        cls._redis_client.config_set('appendfsync', 'everysec')
+
+        # Configure background AOF rewrite settings
+        cls._redis_client.config_set('auto-aof-rewrite-percentage', '100')
+        cls._redis_client.config_set('auto-aof-rewrite-min-size', '64mb')
+
         return cls
 
     @staticmethod
@@ -40,7 +53,12 @@ class RedisConnector:
     @classmethod
     def save_flag(cls, flag: Flag, ttl: Optional[int] = None):
         key = cls._get_flag_key(flag.name)
-        cls._redis_client.set(key, json.dumps(dataclasses.asdict(flag)))
+        flag_data = dataclasses.asdict(flag)
+        if flag.ai_model:
+            flag_data['ai_model'] = flag.ai_model.to_dict()
+        else:
+            flag_data['ai_model'] = None
+        cls._redis_client.set(key, json.dumps(flag_data))
         if ttl is not None:
             cls._redis_client.expire(key, ttl)
 

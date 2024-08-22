@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .forms import ExperimentForm
+from .forms import ExperimentForm, FlagForm
 from .models import Flag, Experiment, Layer
 
 
@@ -9,6 +9,7 @@ class FlagAdmin(admin.ModelAdmin):
     list_display = ('name', 'type', 'base_value')
     search_fields = ('name',)
     list_filter = ('type',)
+    form = FlagForm
 
 
 @admin.register(Layer)
@@ -24,10 +25,10 @@ class ExperimentAdmin(admin.ModelAdmin):
     search_fields = ('name', 'flag__name', 'layer')
     fieldsets = (
         (None, {
-            'fields': ('name', 'flag')
+            'fields': ('name', 'flag', 'layer')
         }),
         ('Details', {
-            'fields': ('flag_value', 'share', 'layer', 'ai_model')
+            'fields': ('flag_value', 'share', 'ai_model')
         }),
     )
     form = ExperimentForm

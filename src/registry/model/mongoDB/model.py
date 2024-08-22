@@ -34,7 +34,7 @@ class MongoDBModelRegistry(ModelRegistryInterface):
 
         if version is None:
             try:
-                new_model['version'] = self.get_last_version_by_flag(model_name=model_name, flag=flag)['version']
+                new_model['version'] = self.get_last_version(flag=flag) + 1
             except ModelNotFound:
                 new_model['version'] = self.STARTING_VERSION
                 new_model['created_at'] = current_time
@@ -42,6 +42,8 @@ class MongoDBModelRegistry(ModelRegistryInterface):
             new_model['version'] = version
 
         self.collection.insert_one(new_model)
+
+        return new_model['version']
 
     def update(self, model_name: str, flag: str, experiments: List[str], version: int) -> None:
         """
@@ -54,11 +56,14 @@ class MongoDBModelRegistry(ModelRegistryInterface):
                 "$addToSet": {"experiments": {"$each": experiments}}
             }, return_document=False)
 
-    def load(self, experiment: str, model_name: Optional[str] = None, version: Optional[int] = None) -> ExperimentModel:
+    def load(self, flag: str, experiment: str = None, model_name: Optional[str] = None,
+             version: Optional[int] = None) -> ExperimentModel:
         """
         Load the model using model_name, experiment, and version. If version is None, latest is assumed.
         """
-        query = {"experiments": {"$in": [experiment]}}
+        query = {"flag": flag}
+        if experiment:
+            query["experiments"] = {"$in": [experiment]}
         if version:
             query["version"] = version
         if model_name:
@@ -76,23 +81,30 @@ class MongoDBModelRegistry(ModelRegistryInterface):
             model_name=model_document['name'],
             version=model_document['version'],
             experiment=experiment,
-            updated_at=model_document['updated_at']
+            updated_at=model_document['updated_at'],
+            flag=model_document['flag'],
         )
 
-    def get_last_version_by_flag(self, model_name: str, flag: str) -> dict:
+    def get_last_version(self, flag: str, model_name: str = None, experiment: Optional[str] = None) -> int:
         """
         Retrieve the latest version number of a model given its name and experiment.
         """
-        latest_version_document = self.collection.find_one(
-            {"flag": flag, "name": model_name},
-            sort=[("version", -1)])
+        query = {"flag": flag}
+
+        if model_name:
+            query["name"] = model_name
+
+        if experiment:
+            query["experiments"] = {"$in": [experiment]}
+
+        latest_version_document = self.collection.find_one(query, sort=[("version", -1)])
 
         if not latest_version_document:
             raise ModelNotFound(f"No versions found for model {model_name} under flag {flag}")
 
-        return latest_version_document
+        return latest_version_document.get('version')
 
-    def get_all_flag_models(self, flag: str) -> List[AiModel]:
+    def get_all_flag_models_specifications(self, flag: str) -> List[AiModel]:
         """
         Retrieve all the versions of a model given its names and a list of experiments, optionally including the creation date.
         """
